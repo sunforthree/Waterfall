@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Explore the Waterfall agent benchmark proposal with an interactive point cloud and a model comparison.">
+<title>Waterfall — Agent benchmark demo</title>
+<style>
+  :root {
+    color-scheme: light;
+    --paper: #f6f4eb;
+    --ink: #162b24;
+    --muted: #485f56;
+    --line: #c9d3c4;
+    --accent: #10685b;
+    --serif: Baskerville, "Palatino Linotype", Georgia, serif;
+    --sans: "Avenir Next", Avenir, "Segoe UI", sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 1rem/1.55 var(--sans); }
+  button, input { font: inherit; }
+  button { color: inherit; cursor: pointer; }
+  button:disabled { opacity: .46; cursor: default; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+  .wrap { width: min(calc(100% - 8rem), 76rem); margin: auto; }
+  header { padding-block: 3.35rem 2.25rem; }
+  .eyebrow { margin: 0; color: var(--muted); font-size: .875rem; font-weight: 650; }
+  .heading { display: flex; justify-content: space-between; align-items: end; gap: 2rem; }
+  h1 { font: 400 clamp(4.6rem, 9vw, 8.8rem)/.91 var(--serif); letter-spacing: -.066em; margin: .5rem 0 0 -.045em; }
+  .intro { max-width: 24rem; margin: 0 0 .25rem; font-size: 1.03rem; color: var(--muted); }
+  .toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .6rem 1.5rem; border-block: 1px solid var(--line); padding-block: .45rem; }
+  .modes { display: flex; flex-wrap: wrap; gap: .3rem; }
+  .mode, .step { padding: .57rem .85rem; min-height: 44px; border: 1px solid transparent; background: transparent; }
+  .mode:hover, .step:hover:not(:disabled) { background: #e8ede1; }
+  .mode[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+  .sample { margin: 0 0 0 .1rem; color: var(--muted); font-size: .875rem; }
+  .view { display: grid; grid-template-columns: minmax(0, 1fr) minmax(14.5rem, 17rem); gap: 2rem; align-items: start; margin-block: 1.2rem 3rem; }
+  .figure { min-width: 0; margin: 0; }
+  canvas { display: block; width: 100%; height: clamp(26rem, 73vh, 37rem); cursor: crosshair; }
+  .aside { border-inline-start: 1px solid var(--line); padding: .8rem 0 0 1.55rem; }
+  h2 { margin: 0; font: 400 2.15rem/1.12 var(--serif); letter-spacing: -.035em; }
+  .run-id { margin: .6rem 0 .1rem; font-size: 1.02rem; font-weight: 650; }
+  .context { margin: 0; font-size: .875rem; color: var(--muted); }
+  .stats { margin: .75rem 0; }
+  .stats div { display: flex; justify-content: space-between; gap: .8rem; padding: .42rem 0; border-bottom: 1px solid var(--line); }
+  .stats dt { color: var(--muted); }
+  .stats dd { margin: 0; text-align: end; font-variant-numeric: tabular-nums; }
+  .steps { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
+  .step { border-color: var(--line); font-size: .92rem; }
+  .hint { margin: .8rem 0 0; color: var(--muted); font-size: .875rem; }
+  .controls { margin: .35rem 0 1.35rem; display: flex; align-items: end; justify-content: space-between; flex-wrap: wrap; gap: 1rem 1.5rem; }
+  fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
+  legend, .budget label { padding: 0; margin: 0; color: var(--muted); font-size: .875rem; font-weight: 650; }
+  .choices { display: flex; flex-wrap: wrap; gap: 0 1rem; }
+  .choices label { display: flex; align-items: center; gap: .45rem; min-height: 44px; font-size: .875rem; cursor: pointer; }
+  .choices input { accent-color: var(--accent); margin: 0; width: 1rem; height: 1rem; }
+  .symbol { width: .65rem; height: .65rem; display: inline-block; background: currentColor; }
+  .circle { border-radius: 100%; color: #146c60; }
+  .diamond { transform: rotate(45deg); color: #a65428; }
+  .square { color: #3d5c91; }
+  .budget { width: min(100%, 12.5rem); align-self: start; }
+  .budget label { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
+  output { color: var(--ink); font-variant-numeric: tabular-nums; }
+  input[type="range"] { width: 100%; height: 34px; accent-color: var(--accent); cursor: pointer; }
+  .summary { width: 100%; border-collapse: collapse; text-align: left; font-size: .9rem; }
+  .summary th, .summary td { border-bottom: 1px solid var(--line); padding: .55rem .45rem .55rem 0; }
+  .summary th { font-weight: 650; }
+  .summary td { font-variant-numeric: tabular-nums; }
+  .summary th:last-child, .summary td:last-child { padding-right: 0; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+  [hidden] { display: none !important; }
+
+  @media (max-width: 850px) {
+    .wrap { width: calc(100% - 3rem); }
+    .view { grid-template-columns: minmax(0, 1fr) minmax(12rem, 14rem); gap: 1.2rem; }
+    .aside { padding-inline-start: 1rem; }
+    canvas { height: 30rem; }
+  }
+
+  @media (max-width: 640px) {
+    .wrap { width: calc(100% - 2rem); }
+    header { padding-block: 2rem 1.35rem; }
+    .heading { display: block; }
+    .intro { margin-top: .9rem; }
+    .toolbar { padding-block: .45rem; }
+    .view { display: flex; flex-direction: column; gap: 1.3rem; margin-top: .7rem; }
+    .figure, .aside { width: 100%; }
+    .aside { border-inline-start: 0; border-block-start: 1px solid var(--line); padding: 1rem 0 0; }
+    canvas { height: min(29rem, 108vw); }
+    .mode { padding-inline: .58rem; font-size: .93rem; }
+    .summary { font-size: .81rem; line-height: 1.35; }
+    .choices { gap: 0 .85rem; }
+  }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <header>
+    <p class="eyebrow">Agent benchmark demo</p>
+    <div class="heading">
+      <h1>Waterfall</h1>
+      <p class="intro">Explore a run history, then compare three agent configurations on the same task.</p>
+    </div>
+  </header>
+  <div class="toolbar">
+    <div class="modes" role="group" aria-label="Demo view">
+      <button class="mode" type="button" data-mode="cloud" aria-pressed="true">Point cloud</button>
+      <button class="mode" type="button" data-mode="compare" aria-pressed="false">Model comparison</button>
+    </div>
+    <p class="sample" id="sample"></p>
+  </div>
+  <div class="view">
+    <figure class="figure">
+      <div class="controls" id="controls" hidden>
+        <fieldset>
+          <legend>Configurations</legend>
+          <div class="choices">
+            <label><input type="checkbox" value="incumbent" checked><i class="symbol circle" aria-hidden="true"></i>Incumbent</label>
+            <label><input type="checkbox" value="medium" checked><i class="symbol diamond" aria-hidden="true"></i>Candidate · medium</label>
+            <label><input type="checkbox" value="high" checked><i class="symbol square" aria-hidden="true"></i>Candidate · high</label>
+          </div>
+        </fieldset>
+        <div class="budget">
+          <label for="target">Time target <output id="time-value" for="target">60 s</output></label>
+          <input id="target" type="range" min="20" max="100" step="5" value="60" aria-valuetext="60 seconds">
+        </div>
+      </div>
+      <canvas id="chart" role="img" aria-label="Waterfall scatter plot. Quality increases rightward and elapsed time increases downward. Use the attempt controls to inspect individual runs."></canvas>
+      <table class="summary" id="summary" hidden>
+        <caption class="sr-only">Selected configurations and outcomes</caption>
+        <thead><tr><th scope="col">Configuration</th><th scope="col">Accepted</th><th scope="col" id="target-heading">Accepted by 60 s</th><th scope="col">Cost per acceptance</th></tr></thead>
+        <tbody id="results"></tbody>
+      </table>
+    </figure>
+    <aside class="aside" aria-labelledby="inspector-title">
+      <h2 id="inspector-title">Attempt details</h2>
+      <div aria-live="polite" id="attempt"></div>
+      <div class="steps">
+        <button class="step" type="button" id="previous" aria-label="Previous attempt">Previous</button>
+        <button class="step" type="button" id="next" aria-label="Next attempt">Next</button>
+      </div>
+      <p class="hint">Select a dot or use the attempt controls.</p>
+    </aside>
+  </div>
+</main>
+<script>
+const configurations = [
+  { id: "incumbent", name: "Incumbent · medium", color: "#146c60", shape: "circle",
+    points: [[74,58,59], [81,52,63], [84,57,71], [88,65,77], [92,61,80]] },
+  { id: "medium", name: "Candidate · medium", color: "#a65428", shape: "diamond",
+    points: [[65,36,32], [82,32,41], [89,39,48], [95,47,58], [null,100,41]] },
+  { id: "high", name: "Candidate · high", color: "#3d5c91", shape: "square",
+    points: [[81,73,105], [88,79,117], [93,70,118], [96,86,125], [99,95,135]] },
+];
+const comparison = configurations.flatMap(config => config.points.map(([quality, time, cents], index) => ({
+  id: config.id + "-" + (index + 1), config, quality, time, cents, accepted: quality !== null && quality >= 80,
+})));
+
+function simulateCloud() {
+  let state = 4031;
+  const random = () => {
+    state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+    return (state + .5) / 4294967296;
+  };
+  const normal = () => Math.sqrt(-2 * Math.log(random())) * Math.cos(2 * Math.PI * random());
+  const attempts = [];
+  function sample(count, samplePoint) {
+    const end = attempts.length + count;
+    while (attempts.length < end) {
+      const [x, y] = samplePoint();
+      if (x < 385 || x > 1400 || y < 121 || y > 860) continue;
+      attempts.push({
+        id: "sim-" + (attempts.length + 1),
+        quality: (x - 385) * 100 / 1015,
+        time: (y - 121) * 100 / 739,
+      });
+    }
+  }
+
+  // The synthetic positions deliberately suggest a crest, falling ribbons, and a pool.
+  sample(740, () => {
+    const t = random() ** .58;
+    return [389 + t * 510 + normal() * 7, 155 + 27 * t ** 3 + 5 * Math.sin(t * 14) + normal() * (4 + t * 9)];
+  });
+  const channels = [[746,265,15,-77], [782,362,12,-59], [817,473,13,-34], [850,550,11,-10],
+    [885,435,12,18], [922,330,13,45], [949,230,13,65]];
+  channels.forEach(([center, count, spread, drift], index) => {
+    sample(count, () => {
+      const t = 1 - random() ** .88;
+      return [center + drift * t ** 1.7 + 7 * Math.sin(11*t + index*.71) + normal() * (spread + 12*t),
+        178 + 560*t + 9*Math.sin(index*.72) + normal()*7];
+    });
+  });
+  sample(439, () => {
+    const t = random() ** .7;
+    return [848 + normal()*(65 + 119*t*t), 189 + t*545 + normal()*13];
+  });
+  sample(1180, () => {
+    const dx = normal() * 162;
+    return [864 + dx, 729 + 35*(1-Math.exp(-Math.abs(dx)/170)) + normal()*(16-Math.min(8,Math.abs(dx)/36))];
+  });
+  sample(257, () => {
+    const reach = random() ** .64;
+    const direction = random() < .5 ? -1 : 1;
+    return [868 + direction*482*reach + normal()*7, 772 + 31*reach + 4*Math.sin(21*reach) + normal()*4];
+  });
+  return attempts;
+}
+
+const cloud = simulateCloud();
+const byId = id => document.getElementById(id);
+const canvas = byId("chart");
+const ctx = canvas.getContext("2d");
+const modes = [...document.querySelectorAll("[data-mode]")];
+const toggles = [...document.querySelectorAll(".choices input")];
+const slider = byId("target");
+const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+const ui = { mode: "cloud", shown: cloud, selected: cloud[1715], hover: null, width: 0, height: 0 };
+const timeTarget = () => Number(slider.value);
+const fixed = value => Number(value.toFixed(1)).toLocaleString("en-US");
+let placed = [];
+let pendingDraw;
+
+function formatCost(cents) {
+  return currency.format(Math.round(cents + Number.EPSILON) / 100);
+}
+
+function draw() {
+  const { width, height, mode, shown, selected, hover } = ui;
+  if (!width || !height) return;
+  ctx.clearRect(0, 0, width, height);
+  const narrow = width < 450;
+  const compare = mode === "compare";
+  const left = compare ? 47 : narrow ? 30 : 64;
+  const right = width - (compare ? narrow ? 69 : 87 : 14);
+  const top = compare ? 17 : 28;
+  const bottom = height - 44;
+  const lane = right + (width - right) * .52;
+  const xAt = quality => left + (right - left) * quality / 100;
+  const yAt = time => top + (bottom - top) * time / 100;
+
+  function text(value, x, y, align = "left") {
+    ctx.font = "500 13px system-ui";
+    ctx.fillStyle = "#485f56";
+    ctx.textAlign = align;
+    ctx.textBaseline = "middle";
+    ctx.fillText(value, x, y);
+  }
+
+  function line(x1, y1, x2, y2, color = "#c9d3c4") {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+
+  function mark(item) {
+    const { x, y, run } = item;
+    const radius = compare ? 5 : narrow ? 1.08 : 1.4;
+    ctx.fillStyle = run.config?.color ?? "rgba(11, 104, 95, .47)";
+    ctx.beginPath();
+    if (run.config?.shape === "diamond") {
+      ctx.moveTo(x, y - 6);
+      ctx.lineTo(x + 6, y);
+      ctx.lineTo(x, y + 6);
+      ctx.lineTo(x - 6, y);
+      ctx.closePath();
+    } else if (run.config?.shape === "square") {
+      ctx.rect(x - radius, y - radius, radius * 2, radius * 2);
+    } else {
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+    }
+    ctx.fill();
+  }
+
+  text("Higher quality →", right, height - 12, "right");
+  if (compare) {
+    ctx.fillStyle = "#e4eee3";
+    ctx.fillRect(xAt(80), top, right - xAt(80), yAt(timeTarget()) - top);
+    ctx.fillStyle = "#ecefe4";
+    ctx.fillRect(right + 8, top, width - right - 8, bottom - top);
+    [0, 25, 50, 75, 100].forEach(value => {
+      line(xAt(value), bottom, xAt(value), bottom + 4);
+      text(String(value), xAt(value), bottom + 15, "center");
+    });
+    [0, 20, 40, 60, 80, 100].forEach(value => {
+      line(left, yAt(value), right, yAt(value));
+      text(value + " s", left - 7, yAt(value), "right");
+    });
+    text("Unscored", lane, top + 13, "center");
+    ctx.setLineDash([4, 4]);
+    line(xAt(80), top, xAt(80), bottom, "#6e947f");
+    line(left, yAt(timeTarget()), right, yAt(timeTarget()), "#6e947f");
+    ctx.setLineDash([]);
+  } else {
+    text(narrow ? "Time ↓" : "Elapsed time ↓", 0, top + 57);
+  }
+
+  placed = shown.map(run => ({ run, x: run.quality === null ? lane : xAt(run.quality), y: yAt(run.time) }));
+  placed.forEach(mark);
+  const focused = placed.filter(item => item.run === selected || item.run === hover);
+  for (const focal of focused) {
+    ctx.beginPath();
+    ctx.arc(focal.x, focal.y, compare ? 10 : 6, 0, Math.PI * 2);
+    ctx.strokeStyle = focal.run === selected ? "#162b24" : "#6e947f";
+    ctx.lineWidth = 1.45;
+    ctx.stroke();
+  }
+  if (!shown.length) text("Select a configuration to see attempts.", (left + right) / 2, (top + bottom) / 2, "center");
+}
+
+function scheduleDraw() {
+  if (pendingDraw) return;
+  pendingDraw = requestAnimationFrame(() => {
+    pendingDraw = undefined;
+    draw();
+  });
+}
+
+function renderAttempt() {
+  const run = ui.selected;
+  const index = ui.shown.indexOf(run);
+  byId("previous").disabled = index <= 0;
+  byId("next").disabled = index < 0 || index >= ui.shown.length - 1;
+  const content = byId("attempt");
+  if (!run) {
+    content.innerHTML = "<p class='hint'>Select a configuration to inspect its attempts.</p>";
+    return;
+  }
+  const details = [["Quality", run.quality === null ? "Unscored" : fixed(run.quality) + " / 100"],
+    ["Elapsed time", fixed(run.time) + " s"]];
+  if (run.config) {
+    details.push(["Rubric", "Demo v1"], ["Execution cost", formatCost(run.cents)],
+      ["Status", run.quality === null ? "Timed out" : "Completed"], ["Verdict", run.accepted ? "Accepted" : "Rejected"]);
+  }
+  content.innerHTML = '<p class="run-id">Run ' + run.id + '</p><p class="context">' +
+    (run.config?.name ?? "Synthetic point cloud") + '</p><dl class="stats">' +
+    details.map(([key, value]) => "<div><dt>" + key + "</dt><dd>" + value + "</dd></div>").join("") + "</dl>";
+}
+
+function renderSummary(enabled) {
+  byId("time-value").value = timeTarget() + " s";
+  slider.setAttribute("aria-valuetext", timeTarget() + " seconds");
+  byId("target-heading").textContent = "Accepted by " + timeTarget() + " s";
+  byId("results").innerHTML = configurations.filter(config => enabled.has(config.id)).map(config => {
+    const runs = comparison.filter(run => run.config === config);
+    const accepted = runs.filter(run => run.accepted);
+    const timely = accepted.filter(run => run.time <= timeTarget()).length;
+    const total = runs.reduce((sum, run) => sum + run.cents, 0);
+    return '<tr><th scope="row">' + config.name + "</th><td>" + accepted.length + "/" + runs.length +
+      "</td><td>" + timely + "/" + runs.length + "</td><td>" +
+      (accepted.length ? formatCost(total / accepted.length) : "Unavailable") + "</td></tr>";
+  }).join("");
+}
+
+function refresh() {
+  const compare = ui.mode === "compare";
+  const enabled = new Set(toggles.filter(toggle => toggle.checked).map(toggle => toggle.value));
+  ui.shown = compare ? comparison.filter(run => enabled.has(run.config.id)) : cloud;
+  if (!ui.shown.includes(ui.selected)) ui.selected = ui.shown[compare ? 0 : 1715] ?? null;
+  ui.hover = null;
+  byId("controls").hidden = !compare;
+  byId("summary").hidden = !compare;
+  byId("sample").textContent = compare ? ui.shown.length + " of 15 synthetic attempts · one task" :
+    cloud.length.toLocaleString("en-US") + " simulated attempts";
+  modes.forEach(button => button.setAttribute("aria-pressed", String(button.dataset.mode === ui.mode)));
+  if (compare) renderSummary(enabled);
+  renderAttempt();
+  scheduleDraw();
+}
+
+function nearest(event) {
+  const bounds = canvas.getBoundingClientRect();
+  const x = event.clientX - bounds.left;
+  const y = event.clientY - bounds.top;
+  let best = null;
+  let limit = 12 ** 2;
+  for (const item of placed) {
+    const distance = (item.x - x) ** 2 + (item.y - y) ** 2;
+    if (distance >= limit) continue;
+    limit = distance;
+    best = item.run;
+  }
+  return best;
+}
+
+canvas.addEventListener("pointermove", event => {
+  ui.hover = nearest(event);
+  scheduleDraw();
+});
+canvas.addEventListener("pointerleave", () => {
+  ui.hover = null;
+  scheduleDraw();
+});
+canvas.addEventListener("click", event => {
+  const run = nearest(event);
+  if (run) {
+    ui.selected = run;
+    renderAttempt();
+    scheduleDraw();
+  }
+});
+function moveSelection(offset) {
+  const next = ui.shown[ui.shown.indexOf(ui.selected) + offset];
+  if (next) {
+    ui.selected = next;
+    ui.hover = null;
+    renderAttempt();
+    scheduleDraw();
+  }
+}
+
+modes.forEach(button => button.addEventListener("click", () => {
+  ui.mode = button.dataset.mode;
+  refresh();
+}));
+toggles.forEach(toggle => toggle.addEventListener("change", refresh));
+slider.addEventListener("input", refresh);
+byId("previous").addEventListener("click", () => moveSelection(-1));
+byId("next").addEventListener("click", () => moveSelection(1));
+
+new ResizeObserver(() => {
+  const box = canvas.getBoundingClientRect();
+  const density = Math.min(window.devicePixelRatio || 1, 2);
+  ui.width = box.width;
+  ui.height = box.height;
+  canvas.width = Math.round(box.width * density);
+  canvas.height = Math.round(box.height * density);
+  ctx.setTransform(density, 0, 0, density, 0, 0);
+  scheduleDraw();
+}).observe(canvas);
+
+refresh();
+</script>
+</body>
+</html>
