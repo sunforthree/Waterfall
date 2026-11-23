@@ -23,7 +23,7 @@ The point-cloud study uses synthetic attempts arranged to illustrate the waterfa
 
 An optional third metric can appear on hover, as a color scale, or in a separate panel. A 3D view can use cost in USD as the z-axis. For higher-dimensional comparisons, filter or facet by task family, reasoning setting, or budget, and keep the same x and y scales. Choosing 2D as the default makes older and newer charts easier to compare and avoids hiding observations behind one another.
 
-In the web demo, each dot is inspectable. Readers can filter configurations and adjust the time target to see how many accepted attempts finished within it. The source is a standalone browser page that teams can adapt to records from their own runner. [Private demo](https://waterfall-benchmark-demo.pluckygeode8.chatgpt.site), [web demo source](web-demo/dist/index.html)
+In the web demo, each dot is inspectable. Readers can select a model and an inclusive range of run dates to see the matching attempts together, with totals for the period and a breakdown by reasoning setting. The time target controls how many accepted attempts count as on time. The source is a standalone browser page that teams can adapt to records from their own runner. [Private demo](https://waterfall-benchmark-demo.pluckygeode8.chatgpt.site), [web demo source](web-demo/dist/index.html)
 
 ## 3. The records to maintain
 
@@ -47,7 +47,7 @@ Append new attempts and preserve historical measurements. Record a new suite ver
 
 ## 5. Reading the example
 
-The model comparison uses 15 **synthetic** attempts on one case with one rubric. The acceptance threshold is 80/100, the default time target is 60 seconds, and the hard timeout is 100 seconds. The time target is separate from the acceptance verdict for this example.
+The model comparison uses 15 **synthetic** attempts on one case with one rubric. Each configuration has one attempt on each of five illustrative dates between November 15 and 23, 2026. The acceptance threshold is 80/100, the default time target is 60 seconds, and the hard timeout is 100 seconds. The time target is separate from the acceptance verdict for this example.
 
 | Configuration | Accepted | Accepted within 60 s | Execution spend | Cost per acceptance |
 |---|---:|---:|---:|---:|

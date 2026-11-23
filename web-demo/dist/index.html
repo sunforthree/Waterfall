@@ -19,7 +19,7 @@
 
   *, *::before, *::after { box-sizing: border-box; }
   body { margin: 0; background: var(--paper); color: var(--ink); font: 1rem/1.55 var(--sans); }
-  button, input { font: inherit; }
+  button, input, select { font: inherit; }
   button { color: inherit; cursor: pointer; }
   button:disabled { opacity: .46; cursor: default; }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
@@ -39,6 +39,7 @@
   .figure { min-width: 0; margin: 0; }
   canvas { display: block; width: 100%; height: clamp(26rem, 73vh, 37rem); cursor: crosshair; }
   .aside { border-inline-start: 1px solid var(--line); padding: .8rem 0 0 1.55rem; }
+  .period-summary { margin-bottom: 1.6rem; }
   h2 { margin: 0; font: 400 2.15rem/1.12 var(--serif); letter-spacing: -.035em; }
   .run-id { margin: .6rem 0 .1rem; font-size: 1.02rem; font-weight: 650; }
   .context { margin: 0; font-size: .875rem; color: var(--muted); }
@@ -50,6 +51,15 @@
   .step { border-color: var(--line); font-size: .92rem; }
   .hint { margin: .8rem 0 0; color: var(--muted); font-size: .875rem; }
   .controls { margin: .35rem 0 1.35rem; display: flex; align-items: end; justify-content: space-between; flex-wrap: wrap; gap: 1rem 1.5rem; }
+  .scope { display: flex; flex: 1 0 100%; flex-wrap: wrap; align-items: end; gap: .65rem 1rem; }
+  .scope label { display: grid; gap: .22rem; color: var(--muted); font-size: .875rem; font-weight: 650; }
+  .scope legend { margin-bottom: .25rem; }
+  .date-fields { display: flex; flex-wrap: wrap; gap: .6rem; }
+  .scope input, .scope select { max-width: 100%; min-height: 44px; padding: .4rem .55rem; border: 1px solid var(--line); border-radius: 0; background: transparent; color: var(--ink); font-weight: 400; }
+  .scope input { min-width: 8rem; }
+  .scope select { appearance: none; padding-inline-end: 2rem; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='m4 6 4 4 4-4' fill='none' stroke='%23485f56' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right .45rem center; }
+  .date-error { flex: 1 0 100%; margin: 0; color: #8b3c23; font-size: .9rem; }
+  [data-view="compare"] canvas { height: clamp(22rem, 52vh, 29rem); }
   fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
   legend, .budget label { padding: 0; margin: 0; color: var(--muted); font-size: .875rem; font-weight: 650; }
   .choices { display: flex; flex-wrap: wrap; gap: 0 1rem; }
@@ -88,6 +98,7 @@
     .figure, .aside { width: 100%; }
     .aside { border-inline-start: 0; border-block-start: 1px solid var(--line); padding: 1rem 0 0; }
     canvas { height: min(29rem, 108vw); }
+    [data-view="compare"] canvas { height: min(24rem, 101vw); }
     .mode { padding-inline: .58rem; font-size: .93rem; }
     .summary { font-size: .81rem; line-height: 1.35; }
     .choices { gap: 0 .85rem; }
@@ -100,7 +111,7 @@
     <p class="eyebrow">Agent benchmark demo</p>
     <div class="heading">
       <h1>Waterfall</h1>
-      <p class="intro">Explore a run history, then compare three agent configurations on the same task.</p>
+      <p class="intro">Explore individual benchmark runs or compare models over a selected period.</p>
     </div>
   </header>
   <div class="toolbar">
@@ -110,9 +121,27 @@
     </div>
     <p class="sample" id="sample"></p>
   </div>
-  <div class="view">
+  <div class="view" id="view" data-view="cloud">
     <figure class="figure">
       <div class="controls" id="controls" hidden>
+        <div class="scope">
+          <label for="model">Model
+            <select id="model">
+              <option value="all">All models</option>
+              <option value="incumbent">Incumbent</option>
+              <option value="candidate">Candidate</option>
+            </select>
+          </label>
+          <fieldset>
+            <legend>Run dates</legend>
+            <div class="date-fields">
+              <label for="start-date">From<input id="start-date" type="date" aria-describedby="date-error"></label>
+              <label for="end-date">Through<input id="end-date" type="date" aria-describedby="date-error"></label>
+            </div>
+          </fieldset>
+          <button class="step" id="reset-dates" type="button">All dates</button>
+          <p class="date-error" id="date-error" role="alert" hidden>Choose an end date on or after the start date.</p>
+        </div>
         <fieldset>
           <legend>Configurations</legend>
           <div class="choices">
@@ -133,7 +162,11 @@
         <tbody id="results"></tbody>
       </table>
     </figure>
-    <aside class="aside" aria-labelledby="inspector-title">
+    <aside class="aside" aria-label="Selected runs">
+      <section class="period-summary" id="period-summary" aria-labelledby="period-title" hidden>
+        <h2 id="period-title">Selected period</h2>
+        <div id="period-details" aria-live="polite"></div>
+      </section>
       <h2 id="inspector-title">Attempt details</h2>
       <div aria-live="polite" id="attempt"></div>
       <div class="steps">
@@ -146,16 +179,18 @@
 </main>
 <script>
 const configurations = [
-  { id: "incumbent", name: "Incumbent · medium", color: "#146c60", shape: "circle",
+  { id: "incumbent", model: "incumbent", name: "Incumbent · medium", color: "#146c60", shape: "circle",
     points: [[74,58,59], [81,52,63], [84,57,71], [88,65,77], [92,61,80]] },
-  { id: "medium", name: "Candidate · medium", color: "#a65428", shape: "diamond",
+  { id: "medium", model: "candidate", name: "Candidate · medium", color: "#a65428", shape: "diamond",
     points: [[65,36,32], [82,32,41], [89,39,48], [95,47,58], [null,100,41]] },
-  { id: "high", name: "Candidate · high", color: "#3d5c91", shape: "square",
+  { id: "high", model: "candidate", name: "Candidate · high", color: "#3d5c91", shape: "square",
     points: [[81,73,105], [88,79,117], [93,70,118], [96,86,125], [99,95,135]] },
 ];
+const runDates = ["2026-11-15", "2026-11-17", "2026-11-19", "2026-11-21", "2026-11-23"];
 const comparison = configurations.flatMap(config => config.points.map(([quality, time, cents], index) => ({
-  id: config.id + "-" + (index + 1), config, quality, time, cents, accepted: quality !== null && quality >= 80,
-})));
+  id: config.id + "-" + (index + 1), config, quality, time, cents, date: runDates[index],
+  accepted: quality !== null && quality >= 80,
+}))).sort((a, b) => a.date.localeCompare(b.date));
 
 function simulateCloud() {
   let state = 4031;
@@ -215,8 +250,17 @@ const ctx = canvas.getContext("2d");
 const modes = [...document.querySelectorAll("[data-mode]")];
 const toggles = [...document.querySelectorAll(".choices input")];
 const slider = byId("target");
+const model = byId("model");
+const startDate = byId("start-date");
+const endDate = byId("end-date");
+const earliest = runDates[0];
+const latest = runDates.at(-1);
+startDate.value = earliest;
+endDate.value = latest;
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
-const ui = { mode: "cloud", shown: cloud, selected: cloud[1715], hover: null, width: 0, height: 0 };
+const calendar = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", dateStyle: "medium" });
+const dateAt = date => new Date(date + "T00:00:00Z");
+const ui = { mode: "cloud", shown: cloud, selected: cloud[1715], hover: null, emptyMessage: "", width: 0, height: 0 };
 const timeTarget = () => Number(slider.value);
 const fixed = value => Number(value.toFixed(1)).toLocaleString("en-US");
 let placed = [];
@@ -309,7 +353,7 @@ function draw() {
     ctx.lineWidth = 1.45;
     ctx.stroke();
   }
-  if (!shown.length) text("Select a configuration to see attempts.", (left + right) / 2, (top + bottom) / 2, "center");
+  if (!shown.length) text("No attempts to plot", (left + right) / 2, (top + bottom) / 2, "center");
 }
 
 function scheduleDraw() {
@@ -327,13 +371,13 @@ function renderAttempt() {
   byId("next").disabled = index < 0 || index >= ui.shown.length - 1;
   const content = byId("attempt");
   if (!run) {
-    content.innerHTML = "<p class='hint'>Select a configuration to inspect its attempts.</p>";
+    content.textContent = ui.emptyMessage;
     return;
   }
   const details = [["Quality", run.quality === null ? "Unscored" : fixed(run.quality) + " / 100"],
     ["Elapsed time", fixed(run.time) + " s"]];
   if (run.config) {
-    details.push(["Rubric", "Demo v1"], ["Execution cost", formatCost(run.cents)],
+    details.push(["Run date", calendar.format(dateAt(run.date))], ["Rubric", "Demo v1"], ["Execution cost", formatCost(run.cents)],
       ["Status", run.quality === null ? "Timed out" : "Completed"], ["Verdict", run.accepted ? "Accepted" : "Rejected"]);
   }
   content.innerHTML = '<p class="run-id">Run ' + run.id + '</p><p class="context">' +
@@ -341,33 +385,73 @@ function renderAttempt() {
     details.map(([key, value]) => "<div><dt>" + key + "</dt><dd>" + value + "</dd></div>").join("") + "</dl>";
 }
 
-function renderSummary(enabled) {
+function summarize(runs) {
+  const accepted = runs.filter(run => run.accepted);
+  const timely = accepted.filter(run => run.time <= timeTarget()).length;
+  const total = runs.reduce((sum, run) => sum + run.cents, 0);
+  return { accepted: accepted.length + "/" + runs.length, timely: timely + "/" + runs.length,
+    cost: accepted.length ? formatCost(total / accepted.length) : "Unavailable" };
+}
+
+function renderSummary(from, through, valid) {
   byId("time-value").value = timeTarget() + " s";
   slider.setAttribute("aria-valuetext", timeTarget() + " seconds");
   byId("target-heading").textContent = "Accepted by " + timeTarget() + " s";
-  byId("results").innerHTML = configurations.filter(config => enabled.has(config.id)).map(config => {
-    const runs = comparison.filter(run => run.config === config);
-    const accepted = runs.filter(run => run.accepted);
-    const timely = accepted.filter(run => run.time <= timeTarget()).length;
-    const total = runs.reduce((sum, run) => sum + run.cents, 0);
-    return '<tr><th scope="row">' + config.name + "</th><td>" + accepted.length + "/" + runs.length +
-      "</td><td>" + timely + "/" + runs.length + "</td><td>" +
-      (accepted.length ? formatCost(total / accepted.length) : "Unavailable") + "</td></tr>";
+  byId("summary").hidden = !ui.shown.length;
+  byId("results").innerHTML = configurations.map(config => {
+    const runs = ui.shown.filter(run => run.config === config);
+    if (!runs.length) return "";
+    const { accepted, timely, cost } = summarize(runs);
+    return '<tr><th scope="row">' + config.name + "</th><td>" + accepted + "</td><td>" + timely + "</td><td>" + cost + "</td></tr>";
   }).join("");
+  const period = byId("period-details");
+  if (!valid) {
+    period.textContent = "";
+    return;
+  }
+  const label = calendar.formatRange(from, through);
+  if (!ui.shown.length) {
+    period.innerHTML = '<p class="run-id">' + label + '</p><p class="context">0 attempts</p>';
+    return;
+  }
+  const { accepted, timely, cost } = summarize(ui.shown);
+  const times = ui.shown.map(run => run.time).sort((a, b) => a - b);
+  const median = (times[Math.floor((times.length - 1) / 2)] + times[Math.floor(times.length / 2)]) / 2;
+  period.innerHTML = '<p class="run-id">' + label + '</p><dl class="stats"><div><dt>Accepted</dt><dd>' + accepted +
+    '</dd></div><div><dt>Accepted by ' + timeTarget() + ' s</dt><dd>' + timely + '</dd></div><div><dt>Median time</dt><dd>' +
+    fixed(median) + ' s</dd></div><div><dt>Cost per acceptance</dt><dd>' + cost + '</dd></div></dl>';
 }
 
 function refresh() {
   const compare = ui.mode === "compare";
+  const inModel = config => model.value === "all" || config.model === model.value;
   const enabled = new Set(toggles.filter(toggle => toggle.checked).map(toggle => toggle.value));
-  ui.shown = compare ? comparison.filter(run => enabled.has(run.config.id)) : cloud;
+  const eligible = comparison.filter(run => inModel(run.config) && enabled.has(run.config.id));
+  const from = startDate.valueAsDate ?? dateAt(earliest);
+  const through = endDate.valueAsDate ?? dateAt(latest);
+  const valid = from <= through;
+  ui.shown = compare ? eligible.filter(run => {
+    const date = dateAt(run.date);
+    return date >= from && date <= through;
+  }) : cloud;
+  ui.emptyMessage = !valid ? "Choose a valid date range." : !eligible.length ?
+    "Select a configuration to inspect its attempts." : "No attempts in this date range.";
   if (!ui.shown.includes(ui.selected)) ui.selected = ui.shown[compare ? 0 : 1715] ?? null;
   ui.hover = null;
+  byId("view").dataset.view = ui.mode;
   byId("controls").hidden = !compare;
   byId("summary").hidden = !compare;
-  byId("sample").textContent = compare ? ui.shown.length + " of 15 synthetic attempts · one task" :
+  byId("period-summary").hidden = !compare;
+  byId("date-error").hidden = valid;
+  endDate.setAttribute("aria-invalid", String(!valid));
+  configurations.forEach(config => {
+    const toggle = toggles.find(input => input.value === config.id);
+    toggle.closest("label").hidden = !inModel(config);
+  });
+  byId("sample").textContent = compare ? ui.shown.length + " of " + eligible.length + " synthetic attempts · one task" :
     cloud.length.toLocaleString("en-US") + " simulated attempts";
   modes.forEach(button => button.setAttribute("aria-pressed", String(button.dataset.mode === ui.mode)));
-  if (compare) renderSummary(enabled);
+  if (compare) renderSummary(from, through, valid);
   renderAttempt();
   scheduleDraw();
 }
@@ -418,6 +502,14 @@ modes.forEach(button => button.addEventListener("click", () => {
   refresh();
 }));
 toggles.forEach(toggle => toggle.addEventListener("change", refresh));
+model.addEventListener("change", refresh);
+startDate.addEventListener("input", refresh);
+endDate.addEventListener("input", refresh);
+byId("reset-dates").addEventListener("click", () => {
+  startDate.value = earliest;
+  endDate.value = latest;
+  refresh();
+});
 slider.addEventListener("input", refresh);
 byId("previous").addEventListener("click", () => moveSelection(-1));
 byId("next").addEventListener("click", () => moveSelection(1));
