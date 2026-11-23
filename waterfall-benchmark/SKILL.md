@@ -23,7 +23,7 @@ Pair configurations on the same cases, state, budgets, and grader. A changed ada
 | Terminal status | Include agent timeouts and errors as unsuccessful valid attempts. Record independent host or evaluator faults as invalid, show the count, and rerun affected cases. |
 | Optional metrics | Keep named units and measurement boundaries for cost, tokens, human review, or checkpoints. Preserve missing values. Show extra metrics in tooltips, panels, or a labeled optional third axis. |
 
-Use one equal-sized mark per attempt, with configuration identified by shape and color. Expose overlap counts or individual records. Preserve the shared scales when faceting. Append new records. Regrade saved outputs under a common rubric before pooling versions, or rerun a matched slice when regrading is unavailable. Preserve prior grades.
+Use one equal-sized mark per attempt, with a labeled legend for color and shape. When color identifies the model, keep its reasoning settings in the same color and distinguish settings by shape or labels where needed. Keep each palette's model mapping fixed across filters. Expose overlap counts or individual records. Preserve the shared scales when faceting. Append new records. Regrade saved outputs under a common rubric before pooling versions, or rerun a matched slice when regrading is unavailable. Preserve prior grades.
 
 ## Offer an interactive web demo
 

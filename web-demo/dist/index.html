@@ -5,34 +5,82 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="Explore the Waterfall agent benchmark proposal with an interactive point cloud and a model comparison.">
 <title>Waterfall — Agent benchmark demo</title>
+<script>
+  const systemAppearance = matchMedia("(prefers-color-scheme: dark)");
+  const appearanceKey = "waterfall-appearance";
+  let appearance = "system";
+  try {
+    const saved = localStorage.getItem(appearanceKey);
+    if (saved === "light" || saved === "dark") appearance = saved;
+  } catch {}
+
+  function applyAppearance() {
+    const systemTheme = systemAppearance.matches ? "dark" : "light";
+    document.documentElement.dataset.theme = appearance === "system" ? systemTheme : appearance;
+  }
+  applyAppearance();
+</script>
 <style>
   :root {
     color-scheme: light;
-    --paper: #f6f4eb;
-    --ink: #162b24;
-    --muted: #485f56;
-    --line: #c9d3c4;
-    --accent: #10685b;
+    --paper: #edf5f4;
+    --ink: #142d3f;
+    --muted: #485f68;
+    --line: #c4d5d5;
+    --accent: #166e67;
+    --hover: #dce9e8;
+    --range-selected: #dcebe8;
+    --volume-muted: #a1b7b7;
+    --error: #8b3c23;
+    --target-region: #dcece8;
+    --unscored-lane: #e4eeee;
+    --guide: #6a908e;
+    --context-point: rgba(72, 95, 104, .17);
+    --incumbent-color: #244473;
+    --candidate-color: #168373;
     --serif: Baskerville, "Palatino Linotype", Georgia, serif;
     --sans: "Avenir Next", Avenir, "Segoe UI", sans-serif;
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --paper: #132627;
+    --ink: #e9f2ee;
+    --muted: #acc3bd;
+    --line: #3c5654;
+    --accent: #88d1df;
+    --hover: #294344;
+    --range-selected: #223c3e;
+    --volume-muted: #597672;
+    --error: #f6bb96;
+    --target-region: #203d39;
+    --unscored-lane: #1c3132;
+    --guide: #73958d;
+    --context-point: rgba(172, 195, 189, .21);
+    --incumbent-color: #88d1df;
+    --candidate-color: #efbe78;
   }
 
   *, *::before, *::after { box-sizing: border-box; }
   body { margin: 0; background: var(--paper); color: var(--ink); font: 1rem/1.55 var(--sans); }
-  button, input, select { font: inherit; }
+  button, input { font: inherit; }
   button { color: inherit; cursor: pointer; }
   button:disabled { opacity: .46; cursor: default; }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
   .wrap { width: min(calc(100% - 8rem), 76rem); margin: auto; }
   header { padding-block: 3.35rem 2.25rem; }
+  .masthead { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .35rem .8rem; }
   .eyebrow { margin: 0; color: var(--muted); font-size: .875rem; font-weight: 650; }
+  .appearance { display: flex; gap: .15rem; }
+  .appearance button { min-height: 44px; padding: .35rem .55rem; border: 1px solid transparent; background: transparent; color: var(--muted); font-size: .875rem; }
+  .appearance button:hover { background: var(--hover); }
+  .appearance button[aria-pressed="true"] { border-color: var(--line); color: var(--ink); }
   .heading { display: flex; justify-content: space-between; align-items: end; gap: 2rem; }
   h1 { font: 400 clamp(4.6rem, 9vw, 8.8rem)/.91 var(--serif); letter-spacing: -.066em; margin: .5rem 0 0 -.045em; }
   .intro { max-width: 24rem; margin: 0 0 .25rem; font-size: 1.03rem; color: var(--muted); }
   .toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .6rem 1.5rem; border-block: 1px solid var(--line); padding-block: .45rem; }
   .modes { display: flex; flex-wrap: wrap; gap: .3rem; }
   .mode, .step { padding: .57rem .85rem; min-height: 44px; border: 1px solid transparent; background: transparent; }
-  .mode:hover, .step:hover:not(:disabled) { background: #e8ede1; }
+  .mode:hover, .step:hover:not(:disabled) { background: var(--hover); }
   .mode[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
   .sample { margin: 0 0 0 .1rem; color: var(--muted); font-size: .875rem; }
   .view { display: grid; grid-template-columns: minmax(0, 1fr) minmax(14.5rem, 17rem); gap: 2rem; align-items: start; margin-block: 1.2rem 3rem; }
@@ -55,10 +103,8 @@
   .scope label { display: grid; gap: .22rem; color: var(--muted); font-size: .875rem; font-weight: 650; }
   .scope legend { margin-bottom: .25rem; }
   .date-fields { display: flex; flex-wrap: wrap; gap: .6rem; }
-  .scope input, .scope select { max-width: 100%; min-height: 44px; padding: .4rem .55rem; border: 1px solid var(--line); border-radius: 0; background: transparent; color: var(--ink); font-weight: 400; }
-  .scope input { min-width: 8rem; }
-  .scope select { appearance: none; padding-inline-end: 2rem; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='m4 6 4 4 4-4' fill='none' stroke='%23485f56' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right .45rem center; }
-  .date-error { flex: 1 0 100%; margin: 0; color: #8b3c23; font-size: .9rem; }
+  .scope input[type="date"] { min-width: 8rem; max-width: 100%; min-height: 44px; padding: .4rem .55rem; border: 1px solid var(--line); border-radius: 0; background: transparent; color: var(--ink); font-weight: 400; }
+  .date-error { flex: 1 0 100%; margin: 0; color: var(--error); font-size: .9rem; }
   .compare-controls { display: contents; }
   .timeline { flex: 1 0 100%; min-width: 0; }
   .timeline-label { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .25rem 1rem; margin-bottom: .35rem; color: var(--muted); font-size: .875rem; }
@@ -66,9 +112,9 @@
   .timeline-days { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); border-block: 1px solid var(--line); touch-action: pan-y; user-select: none; }
   .timeline-day { display: grid; grid-template-rows: 1.6rem auto; justify-items: center; align-items: end; gap: .15rem; min-height: 48px; padding: .3rem .08rem; border: 0; background: transparent; color: var(--muted); font-size: .875rem; font-variant-numeric: tabular-nums; }
   .timeline-day:focus-visible { outline-offset: -2px; }
-  .timeline-day[aria-pressed="true"] { background: #e3ebde; color: var(--ink); font-weight: 650; }
-  .timeline-day:hover { background: #d8e7d9; }
-  .day-volume { width: min(45%, 1.75rem); height: var(--volume); background: #9bb2a5; }
+  .timeline-day[aria-pressed="true"] { background: var(--range-selected); color: var(--ink); font-weight: 650; }
+  .timeline-day:hover { background: var(--hover); }
+  .day-volume { width: min(45%, 1.75rem); height: var(--volume); background: var(--volume-muted); }
   .timeline-day[aria-pressed="true"] .day-volume { background: var(--accent); }
   .chart-note { margin: 0; color: var(--muted); font-size: .875rem; }
   [data-view="cloud"] canvas { height: clamp(24rem, 59vh, 34rem); }
@@ -79,9 +125,10 @@
   .choices label { display: flex; align-items: center; gap: .45rem; min-height: 44px; font-size: .875rem; cursor: pointer; }
   .choices input { accent-color: var(--accent); margin: 0; width: 1rem; height: 1rem; }
   .symbol { width: .65rem; height: .65rem; display: inline-block; background: currentColor; }
-  .circle { border-radius: 100%; color: #146c60; }
-  .diamond { transform: rotate(45deg); color: #a65428; }
-  .square { color: #3d5c91; }
+  .circle { border-radius: 100%; }
+  .diamond { transform: rotate(45deg); }
+  .incumbent { color: var(--incumbent-color); }
+  .candidate { color: var(--candidate-color); }
   .budget { width: min(100%, 12.5rem); align-self: start; }
   .budget label { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
   output { color: var(--ink); font-variant-numeric: tabular-nums; }
@@ -122,10 +169,17 @@
 <body>
 <main class="wrap">
   <header>
-    <p class="eyebrow">Agent benchmark demo</p>
+    <div class="masthead">
+      <p class="eyebrow">Agent benchmark demo</p>
+      <div class="appearance" role="group" aria-label="Appearance">
+        <button type="button" data-appearance="system" aria-pressed="true">System</button>
+        <button type="button" data-appearance="light" aria-pressed="false" title="Glacial Melt">Light</button>
+        <button type="button" data-appearance="dark" aria-pressed="false" title="Moonlit Falls">Dark</button>
+      </div>
+    </div>
     <div class="heading">
       <h1>Waterfall</h1>
-      <p class="intro">Select a model and a period to see its runs within the waterfall.</p>
+      <p class="intro">Select models and a period to compare their runs in one waterfall.</p>
     </div>
   </header>
   <div class="toolbar">
@@ -139,13 +193,13 @@
     <figure class="figure">
       <div class="controls">
         <div class="scope">
-          <label for="model">Model
-            <select id="model">
-              <option value="all">All models</option>
-              <option value="incumbent">Incumbent</option>
-              <option value="candidate">Candidate</option>
-            </select>
-          </label>
+          <fieldset id="models">
+            <legend>Models</legend>
+            <div class="choices">
+              <label><input type="checkbox" value="incumbent" checked><i class="symbol circle incumbent" aria-hidden="true"></i>Incumbent</label>
+              <label><input type="checkbox" value="candidate" checked><i class="symbol circle candidate" aria-hidden="true"></i>Candidate</label>
+            </div>
+          </fieldset>
           <fieldset>
             <legend>Run dates</legend>
             <div class="date-fields">
@@ -164,9 +218,9 @@
         <fieldset>
           <legend>Configurations</legend>
           <div class="choices">
-            <label><input type="checkbox" value="incumbent" checked><i class="symbol circle" aria-hidden="true"></i>Incumbent</label>
-            <label><input type="checkbox" value="medium" checked><i class="symbol diamond" aria-hidden="true"></i>Candidate · medium</label>
-            <label><input type="checkbox" value="high" checked><i class="symbol square" aria-hidden="true"></i>Candidate · high</label>
+            <label><input type="checkbox" value="incumbent" checked><i class="symbol circle incumbent" aria-hidden="true"></i>Incumbent · medium</label>
+            <label><input type="checkbox" value="medium" checked><i class="symbol diamond candidate" aria-hidden="true"></i>Candidate · medium</label>
+            <label><input type="checkbox" value="high" checked><i class="symbol candidate" aria-hidden="true"></i>Candidate · high</label>
           </div>
         </fieldset>
         <div class="budget">
@@ -200,11 +254,11 @@
 </main>
 <script>
 const configurations = [
-  { id: "incumbent", model: "incumbent", name: "Incumbent · medium", color: "#146c60", shape: "circle",
+  { id: "incumbent", model: "incumbent", name: "Incumbent · medium", shape: "circle",
     points: [[74,58,59], [81,52,63], [84,57,71], [88,65,77], [92,61,80]] },
-  { id: "medium", model: "candidate", name: "Candidate · medium", color: "#a65428", shape: "diamond",
+  { id: "medium", model: "candidate", name: "Candidate · medium", shape: "diamond",
     points: [[65,36,32], [82,32,41], [89,39,48], [95,47,58], [null,100,41]] },
-  { id: "high", model: "candidate", name: "Candidate · high", color: "#3d5c91", shape: "square",
+  { id: "high", model: "candidate", name: "Candidate · high", shape: "square",
     points: [[81,73,105], [88,79,117], [93,70,118], [96,86,125], [99,95,135]] },
 ];
 const runDates = ["2026-11-15", "2026-11-17", "2026-11-19", "2026-11-21", "2026-11-23"];
@@ -275,9 +329,10 @@ const byId = id => document.getElementById(id);
 const canvas = byId("chart");
 const ctx = canvas.getContext("2d");
 const modes = [...document.querySelectorAll("[data-mode]")];
-const toggles = [...document.querySelectorAll(".choices input")];
+const toggles = [...document.querySelectorAll("#compare-controls .choices input")];
+const modelToggles = [...document.querySelectorAll("#models input")];
+const appearanceButtons = [...document.querySelectorAll("[data-appearance]")];
 const slider = byId("target");
-const model = byId("model");
 const startDate = byId("start-date");
 const endDate = byId("end-date");
 const earliest = runDates[0];
@@ -310,6 +365,22 @@ function formatCost(cents) {
   return currency.format(Math.round(cents + Number.EPSILON) / 100);
 }
 
+function readChartColors() {
+  const style = getComputedStyle(document.documentElement);
+  const color = name => style.getPropertyValue("--" + name).trim();
+  return { incumbent: color("incumbent-color"), candidate: color("candidate-color"),
+    muted: color("muted"), line: color("line"), guide: color("guide"), ink: color("ink"),
+    context: color("context-point"), target: color("target-region"), unscored: color("unscored-lane") };
+}
+
+let colors;
+function refreshAppearance() {
+  applyAppearance();
+  colors = readChartColors();
+  appearanceButtons.forEach(button => button.setAttribute("aria-pressed", String(button.dataset.appearance === appearance)));
+  scheduleDraw();
+}
+
 function draw() {
   const { width, height, mode, shown, selected, hover } = ui;
   if (!width || !height) return;
@@ -326,13 +397,13 @@ function draw() {
 
   function text(value, x, y, align = "left") {
     ctx.font = "500 13px system-ui";
-    ctx.fillStyle = "#485f56";
+    ctx.fillStyle = colors.muted;
     ctx.textAlign = align;
     ctx.textBaseline = "middle";
     ctx.fillText(value, x, y);
   }
 
-  function line(x1, y1, x2, y2, color = "#c9d3c4") {
+  function line(x1, y1, x2, y2, color = colors.line) {
     ctx.strokeStyle = color;
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -344,8 +415,8 @@ function draw() {
   function mark(item, context = false) {
     const { x, y, run } = item;
     const radius = compare ? 5 : narrow ? 1.08 : 1.4;
-    ctx.fillStyle = compare ? run.config.color : context ? "rgba(11, 104, 95, .12)" :
-      shown.length === cloud.length ? "rgba(11, 104, 95, .47)" : "rgba(11, 104, 95, .82)";
+    ctx.fillStyle = context ? colors.context : colors[run.config.model];
+    ctx.globalAlpha = compare || context ? 1 : shown.length === cloud.length ? .63 : .86;
     ctx.beginPath();
     if (compare && run.config.shape === "diamond") {
       ctx.moveTo(x, y - 6);
@@ -359,13 +430,14 @@ function draw() {
       ctx.arc(x, y, radius, 0, Math.PI * 2);
     }
     ctx.fill();
+    ctx.globalAlpha = 1;
   }
 
   text("Higher quality →", right, height - 12, "right");
   if (compare) {
-    ctx.fillStyle = "#e4eee3";
+    ctx.fillStyle = colors.target;
     ctx.fillRect(xAt(80), top, right - xAt(80), yAt(timeTarget()) - top);
-    ctx.fillStyle = "#ecefe4";
+    ctx.fillStyle = colors.unscored;
     ctx.fillRect(right + 8, top, width - right - 8, bottom - top);
     [0, 25, 50, 75, 100].forEach(value => {
       line(xAt(value), bottom, xAt(value), bottom + 4);
@@ -377,8 +449,8 @@ function draw() {
     });
     text("Unscored", lane, top + 13, "center");
     ctx.setLineDash([4, 4]);
-    line(xAt(80), top, xAt(80), bottom, "#6e947f");
-    line(left, yAt(timeTarget()), right, yAt(timeTarget()), "#6e947f");
+    line(xAt(80), top, xAt(80), bottom, colors.guide);
+    line(left, yAt(timeTarget()), right, yAt(timeTarget()), colors.guide);
     ctx.setLineDash([]);
   } else {
     text(narrow ? "Time ↓" : "Elapsed time ↓", 0, top + 57);
@@ -397,7 +469,7 @@ function draw() {
   for (const focal of focused) {
     ctx.beginPath();
     ctx.arc(focal.x, focal.y, compare ? 10 : 6, 0, Math.PI * 2);
-    ctx.strokeStyle = focal.run === selected ? "#162b24" : "#6e947f";
+    ctx.strokeStyle = focal.run === selected ? colors.ink : colors.guide;
     ctx.lineWidth = 1.45;
     ctx.stroke();
   }
@@ -501,7 +573,8 @@ function renderTimeline(eligible, from, through) {
 
 function refresh() {
   const compare = ui.mode === "compare";
-  const inModel = config => model.value === "all" || config.model === model.value;
+  const activeModels = new Set(modelToggles.filter(toggle => toggle.checked).map(toggle => toggle.value));
+  const inModel = config => activeModels.has(config.model);
   const enabled = new Set(toggles.filter(toggle => toggle.checked).map(toggle => toggle.value));
   const eligible = (compare ? comparison : cloud).filter(run => inModel(run.config) && (!compare || enabled.has(run.config.id)));
   const from = startDate.valueAsDate ?? dateAt(earliest);
@@ -511,8 +584,8 @@ function refresh() {
     const date = dateAt(run.date);
     return date >= from && date <= through;
   });
-  ui.emptyMessage = !valid ? "Choose a valid date range." : !eligible.length ?
-    "Select a configuration to inspect its attempts." : "No attempts in this date range.";
+  ui.emptyMessage = !valid ? "Choose a valid date range." : !activeModels.size ? "Select a model to inspect its attempts." :
+    !eligible.length ? "Select a configuration to inspect its attempts." : "No attempts in this date range.";
   if (!ui.shown.includes(ui.selected)) {
     ui.selected = !compare && ui.shown.includes(initialRun) ? initialRun : (ui.shown[0] ?? null);
   }
@@ -587,7 +660,17 @@ modes.forEach(button => button.addEventListener("click", () => {
   refresh();
 }));
 toggles.forEach(toggle => toggle.addEventListener("change", refresh));
-model.addEventListener("change", refresh);
+modelToggles.forEach(toggle => toggle.addEventListener("change", refresh));
+appearanceButtons.forEach(button => button.addEventListener("click", () => {
+  appearance = button.dataset.appearance;
+  try {
+    localStorage.setItem(appearanceKey, appearance);
+  } catch {}
+  refreshAppearance();
+}));
+systemAppearance.addEventListener("change", () => {
+  if (appearance === "system") refreshAppearance();
+});
 startDate.addEventListener("input", refresh);
 endDate.addEventListener("input", refresh);
 function setDateRange(from, through) {
@@ -649,6 +732,7 @@ new ResizeObserver(() => {
   scheduleDraw();
 }).observe(canvas);
 
+refreshAppearance();
 refresh();
 </script>
 </body>
