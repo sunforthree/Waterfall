@@ -31,6 +31,8 @@ When people need to explore the benchmark, use a website as a view of the existi
 
 Let readers filter configurations on shared scales and inspect a point by pointer, touch, or keyboard. For run history, use start timestamps to filter by model and an inclusive date range. Label the time zone, summarize the matching attempts, and break out reasoning settings so the pooled summary remains interpretable. Show the attempt ID, configuration, rubric, elapsed time, quality, verdict, status, and cost when available. Keep timed-out attempts accessible in the unscored lane and surface records with missing time in a status count. If readers can adjust a time target, update the target guide and on-time acceptance counts. Preserve the original verdicts and include failed-attempt costs in the cost per acceptance. Check these interactions and the small-screen layout before sharing the demo.
 
+For dense point clouds, a timeline can select a whole period. Offer date fields as a keyboard-accessible alternative to dragging. Keep points at their original coordinates. If dimmed points show the full dataset for context, label them and exclude them from the selected-period counts, summary, and attempt navigation.
+
 ## Report the decision
 
 Show the case coverage, valid and invalid counts, acceptance, latency, and cost per accepted outcome. Divide known spend on valid attempts, including failures, by accepted outcomes. If spend is incomplete or acceptances are zero, mark the ratio unavailable. Show independently invalid spend separately. Compare paired case-level results when repetitions differ.

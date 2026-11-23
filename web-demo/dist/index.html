@@ -59,6 +59,19 @@
   .scope input { min-width: 8rem; }
   .scope select { appearance: none; padding-inline-end: 2rem; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Cpath d='m4 6 4 4 4-4' fill='none' stroke='%23485f56' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right .45rem center; }
   .date-error { flex: 1 0 100%; margin: 0; color: #8b3c23; font-size: .9rem; }
+  .compare-controls { display: contents; }
+  .timeline { flex: 1 0 100%; min-width: 0; }
+  .timeline-label { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .25rem 1rem; margin-bottom: .35rem; color: var(--muted); font-size: .875rem; }
+  .timeline-label strong { font-weight: 650; }
+  .timeline-days { display: grid; grid-template-columns: repeat(9, minmax(0, 1fr)); border-block: 1px solid var(--line); touch-action: pan-y; user-select: none; }
+  .timeline-day { display: grid; grid-template-rows: 1.6rem auto; justify-items: center; align-items: end; gap: .15rem; min-height: 48px; padding: .3rem .08rem; border: 0; background: transparent; color: var(--muted); font-size: .875rem; font-variant-numeric: tabular-nums; }
+  .timeline-day:focus-visible { outline-offset: -2px; }
+  .timeline-day[aria-pressed="true"] { background: #e3ebde; color: var(--ink); font-weight: 650; }
+  .timeline-day:hover { background: #d8e7d9; }
+  .day-volume { width: min(45%, 1.75rem); height: var(--volume); background: #9bb2a5; }
+  .timeline-day[aria-pressed="true"] .day-volume { background: var(--accent); }
+  .chart-note { margin: 0; color: var(--muted); font-size: .875rem; }
+  [data-view="cloud"] canvas { height: clamp(24rem, 59vh, 34rem); }
   [data-view="compare"] canvas { height: clamp(22rem, 52vh, 29rem); }
   fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
   legend, .budget label { padding: 0; margin: 0; color: var(--muted); font-size: .875rem; font-weight: 650; }
@@ -98,6 +111,7 @@
     .figure, .aside { width: 100%; }
     .aside { border-inline-start: 0; border-block-start: 1px solid var(--line); padding: 1rem 0 0; }
     canvas { height: min(29rem, 108vw); }
+    [data-view="cloud"] canvas { height: min(27rem, 105vw); }
     [data-view="compare"] canvas { height: min(24rem, 101vw); }
     .mode { padding-inline: .58rem; font-size: .93rem; }
     .summary { font-size: .81rem; line-height: 1.35; }
@@ -111,7 +125,7 @@
     <p class="eyebrow">Agent benchmark demo</p>
     <div class="heading">
       <h1>Waterfall</h1>
-      <p class="intro">Explore individual benchmark runs or compare models over a selected period.</p>
+      <p class="intro">Select a model and a period to see its runs within the waterfall.</p>
     </div>
   </header>
   <div class="toolbar">
@@ -123,7 +137,7 @@
   </div>
   <div class="view" id="view" data-view="cloud">
     <figure class="figure">
-      <div class="controls" id="controls" hidden>
+      <div class="controls">
         <div class="scope">
           <label for="model">Model
             <select id="model">
@@ -142,6 +156,11 @@
           <button class="step" id="reset-dates" type="button">All dates</button>
           <p class="date-error" id="date-error" role="alert" hidden>Choose an end date on or after the start date.</p>
         </div>
+        <div class="timeline" id="timeline" aria-labelledby="timeline-month">
+          <div class="timeline-label"><strong id="timeline-month">November 2026</strong><span>Drag across days to select a period</span></div>
+          <div class="timeline-days" id="timeline-days" role="group" aria-label="Run dates"></div>
+        </div>
+        <div class="compare-controls" id="compare-controls" hidden>
         <fieldset>
           <legend>Configurations</legend>
           <div class="choices">
@@ -154,8 +173,10 @@
           <label for="target">Time target <output id="time-value" for="target">60 s</output></label>
           <input id="target" type="range" min="20" max="100" step="5" value="60" aria-valuetext="60 seconds">
         </div>
+        </div>
       </div>
       <canvas id="chart" role="img" aria-label="Waterfall scatter plot. Quality increases rightward and elapsed time increases downward. Use the attempt controls to inspect individual runs."></canvas>
+      <p class="chart-note" id="context-note" hidden>Faint dots are outside the selection.</p>
       <table class="summary" id="summary" hidden>
         <caption class="sr-only">Selected configurations and outcomes</caption>
         <thead><tr><th scope="col">Configuration</th><th scope="col">Accepted</th><th scope="col" id="target-heading">Accepted by 60 s</th><th scope="col">Cost per acceptance</th></tr></thead>
@@ -187,6 +208,7 @@ const configurations = [
     points: [[81,73,105], [88,79,117], [93,70,118], [96,86,125], [99,95,135]] },
 ];
 const runDates = ["2026-11-15", "2026-11-17", "2026-11-19", "2026-11-21", "2026-11-23"];
+const cloudDates = Array.from({length: 9}, (_, day) => "2026-11-" + (15 + day));
 const comparison = configurations.flatMap(config => config.points.map(([quality, time, cents], index) => ({
   id: config.id + "-" + (index + 1), config, quality, time, cents, date: runDates[index],
   accepted: quality !== null && quality >= 80,
@@ -240,7 +262,12 @@ function simulateCloud() {
     const direction = random() < .5 ? -1 : 1;
     return [868 + direction*482*reach + normal()*7, 772 + 31*reach + 4*Math.sin(21*reach) + normal()*4];
   });
-  return attempts;
+  // Add fixture metadata after drawing the coordinates so it cannot change the shape.
+  for (const run of attempts) {
+    run.config = configurations[Math.floor(random() * configurations.length)];
+    run.date = cloudDates[Math.floor(random() * cloudDates.length)];
+  }
+  return attempts.sort((a, b) => a.date.localeCompare(b.date));
 }
 
 const cloud = simulateCloud();
@@ -260,11 +287,24 @@ endDate.value = latest;
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 const calendar = new Intl.DateTimeFormat("en-US", { timeZone: "UTC", dateStyle: "medium" });
 const dateAt = date => new Date(date + "T00:00:00Z");
-const ui = { mode: "cloud", shown: cloud, selected: cloud[1715], hover: null, emptyMessage: "", width: 0, height: 0 };
+const initialRun = cloud.find(run => run.id === "sim-1716");
+const ui = { mode: "cloud", shown: cloud, selected: initialRun, hover: null, emptyMessage: "", width: 0, height: 0 };
 const timeTarget = () => Number(slider.value);
 const fixed = value => Number(value.toFixed(1)).toLocaleString("en-US");
 let placed = [];
 let pendingDraw;
+const timeline = byId("timeline-days");
+const timelineDays = cloudDates.map(date => {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "timeline-day";
+  const volume = document.createElement("span");
+  volume.className = "day-volume";
+  volume.setAttribute("aria-hidden", "true");
+  button.append(volume, date.slice(-2));
+  timeline.append(button);
+  return button;
+});
 
 function formatCost(cents) {
   return currency.format(Math.round(cents + Number.EPSILON) / 100);
@@ -301,18 +341,19 @@ function draw() {
     ctx.stroke();
   }
 
-  function mark(item) {
+  function mark(item, context = false) {
     const { x, y, run } = item;
     const radius = compare ? 5 : narrow ? 1.08 : 1.4;
-    ctx.fillStyle = run.config?.color ?? "rgba(11, 104, 95, .47)";
+    ctx.fillStyle = compare ? run.config.color : context ? "rgba(11, 104, 95, .12)" :
+      shown.length === cloud.length ? "rgba(11, 104, 95, .47)" : "rgba(11, 104, 95, .82)";
     ctx.beginPath();
-    if (run.config?.shape === "diamond") {
+    if (compare && run.config.shape === "diamond") {
       ctx.moveTo(x, y - 6);
       ctx.lineTo(x + 6, y);
       ctx.lineTo(x, y + 6);
       ctx.lineTo(x - 6, y);
       ctx.closePath();
-    } else if (run.config?.shape === "square") {
+    } else if (compare && run.config.shape === "square") {
       ctx.rect(x - radius, y - radius, radius * 2, radius * 2);
     } else {
       ctx.arc(x, y, radius, 0, Math.PI * 2);
@@ -343,8 +384,15 @@ function draw() {
     text(narrow ? "Time ↓" : "Elapsed time ↓", 0, top + 57);
   }
 
-  placed = shown.map(run => ({ run, x: run.quality === null ? lane : xAt(run.quality), y: yAt(run.time) }));
-  placed.forEach(mark);
+  const position = run => ({ run, x: run.quality === null ? lane : xAt(run.quality), y: yAt(run.time) });
+  if (!compare && shown.length < cloud.length) {
+    const shownRuns = new Set(shown);
+    for (const run of cloud) {
+      if (!shownRuns.has(run)) mark(position(run), true);
+    }
+  }
+  placed = shown.map(position);
+  placed.forEach(item => mark(item));
   const focused = placed.filter(item => item.run === selected || item.run === hover);
   for (const focal of focused) {
     ctx.beginPath();
@@ -376,12 +424,13 @@ function renderAttempt() {
   }
   const details = [["Quality", run.quality === null ? "Unscored" : fixed(run.quality) + " / 100"],
     ["Elapsed time", fixed(run.time) + " s"]];
-  if (run.config) {
-    details.push(["Run date", calendar.format(dateAt(run.date))], ["Rubric", "Demo v1"], ["Execution cost", formatCost(run.cents)],
+  details.push(["Run date", calendar.format(dateAt(run.date))]);
+  if (ui.mode === "compare") {
+    details.push(["Rubric", "Demo v1"], ["Execution cost", formatCost(run.cents)],
       ["Status", run.quality === null ? "Timed out" : "Completed"], ["Verdict", run.accepted ? "Accepted" : "Rejected"]);
   }
   content.innerHTML = '<p class="run-id">Run ' + run.id + '</p><p class="context">' +
-    (run.config?.name ?? "Synthetic point cloud") + '</p><dl class="stats">' +
+    run.config.name + '</p><dl class="stats">' +
     details.map(([key, value]) => "<div><dt>" + key + "</dt><dd>" + value + "</dd></div>").join("") + "</dl>";
 }
 
@@ -393,7 +442,7 @@ function summarize(runs) {
     cost: accepted.length ? formatCost(total / accepted.length) : "Unavailable" };
 }
 
-function renderSummary(from, through, valid) {
+function renderSummary() {
   byId("time-value").value = timeTarget() + " s";
   slider.setAttribute("aria-valuetext", timeTarget() + " seconds");
   byId("target-heading").textContent = "Accepted by " + timeTarget() + " s";
@@ -404,6 +453,14 @@ function renderSummary(from, through, valid) {
     const { accepted, timely, cost } = summarize(runs);
     return '<tr><th scope="row">' + config.name + "</th><td>" + accepted + "</td><td>" + timely + "</td><td>" + cost + "</td></tr>";
   }).join("");
+}
+
+function medianOf(values) {
+  values.sort((a, b) => a - b);
+  return (values[Math.floor((values.length - 1) / 2)] + values[Math.floor(values.length / 2)]) / 2;
+}
+
+function renderPeriod(from, through, valid) {
   const period = byId("period-details");
   if (!valid) {
     period.textContent = "";
@@ -414,44 +471,72 @@ function renderSummary(from, through, valid) {
     period.innerHTML = '<p class="run-id">' + label + '</p><p class="context">0 attempts</p>';
     return;
   }
-  const { accepted, timely, cost } = summarize(ui.shown);
-  const times = ui.shown.map(run => run.time).sort((a, b) => a - b);
-  const median = (times[Math.floor((times.length - 1) / 2)] + times[Math.floor(times.length / 2)]) / 2;
-  period.innerHTML = '<p class="run-id">' + label + '</p><dl class="stats"><div><dt>Accepted</dt><dd>' + accepted +
-    '</dd></div><div><dt>Accepted by ' + timeTarget() + ' s</dt><dd>' + timely + '</dd></div><div><dt>Median time</dt><dd>' +
-    fixed(median) + ' s</dd></div><div><dt>Cost per acceptance</dt><dd>' + cost + '</dd></div></dl>';
+  const medianTime = fixed(medianOf(ui.shown.map(run => run.time))) + " s";
+  const stats = [["Median time", medianTime]];
+  if (ui.mode === "compare") {
+    const { accepted, timely, cost } = summarize(ui.shown);
+    stats.unshift(["Accepted", accepted], ["Accepted by " + timeTarget() + " s", timely]);
+    stats.push(["Cost per acceptance", cost]);
+  } else {
+    stats.unshift(["Matching runs", ui.shown.length.toLocaleString("en-US")]);
+    stats.push(["Median quality", fixed(medianOf(ui.shown.map(run => run.quality))) + " / 100"]);
+  }
+  period.innerHTML = '<p class="run-id">' + label + '</p><dl class="stats">' +
+    stats.map(([key, value]) => "<div><dt>" + key + "</dt><dd>" + value + "</dd></div>").join("") + "</dl>";
+}
+
+function renderTimeline(eligible, from, through) {
+  const counts = new Map(cloudDates.map(date => [date, 0]));
+  for (const run of eligible) counts.set(run.date, counts.get(run.date) + 1);
+  const maximum = Math.max(1, ...counts.values());
+  timelineDays.forEach((button, index) => {
+    const date = cloudDates[index];
+    const count = counts.get(date);
+    const day = dateAt(date);
+    button.style.setProperty("--volume", (100 * count / maximum) + "%");
+    button.setAttribute("aria-pressed", String(day >= from && day <= through));
+    button.setAttribute("aria-label", calendar.format(day) + ", " + count + " simulated runs");
+  });
 }
 
 function refresh() {
   const compare = ui.mode === "compare";
   const inModel = config => model.value === "all" || config.model === model.value;
   const enabled = new Set(toggles.filter(toggle => toggle.checked).map(toggle => toggle.value));
-  const eligible = comparison.filter(run => inModel(run.config) && enabled.has(run.config.id));
+  const eligible = (compare ? comparison : cloud).filter(run => inModel(run.config) && (!compare || enabled.has(run.config.id)));
   const from = startDate.valueAsDate ?? dateAt(earliest);
   const through = endDate.valueAsDate ?? dateAt(latest);
   const valid = from <= through;
-  ui.shown = compare ? eligible.filter(run => {
+  ui.shown = eligible.filter(run => {
     const date = dateAt(run.date);
     return date >= from && date <= through;
-  }) : cloud;
+  });
   ui.emptyMessage = !valid ? "Choose a valid date range." : !eligible.length ?
     "Select a configuration to inspect its attempts." : "No attempts in this date range.";
-  if (!ui.shown.includes(ui.selected)) ui.selected = ui.shown[compare ? 0 : 1715] ?? null;
+  if (!ui.shown.includes(ui.selected)) {
+    ui.selected = !compare && ui.shown.includes(initialRun) ? initialRun : (ui.shown[0] ?? null);
+  }
   ui.hover = null;
   byId("view").dataset.view = ui.mode;
-  byId("controls").hidden = !compare;
+  byId("timeline").hidden = compare;
+  byId("compare-controls").hidden = !compare;
   byId("summary").hidden = !compare;
-  byId("period-summary").hidden = !compare;
+  byId("period-summary").hidden = !valid;
+  byId("context-note").hidden = compare || ui.shown.length === cloud.length;
   byId("date-error").hidden = valid;
   endDate.setAttribute("aria-invalid", String(!valid));
   configurations.forEach(config => {
     const toggle = toggles.find(input => input.value === config.id);
     toggle.closest("label").hidden = !inModel(config);
   });
-  byId("sample").textContent = compare ? ui.shown.length + " of " + eligible.length + " synthetic attempts · one task" :
-    cloud.length.toLocaleString("en-US") + " simulated attempts";
+  const count = ui.shown.length.toLocaleString("en-US");
+  const total = eligible.length.toLocaleString("en-US");
+  byId("sample").textContent = compare ? count + " of " + total + " synthetic attempts · one task" :
+    count + (ui.shown.length < eligible.length ? " of " + total : "") + " simulated attempts";
   modes.forEach(button => button.setAttribute("aria-pressed", String(button.dataset.mode === ui.mode)));
-  if (compare) renderSummary(from, through, valid);
+  if (compare) renderSummary();
+  else renderTimeline(eligible, from, through);
+  renderPeriod(from, through, valid);
   renderAttempt();
   scheduleDraw();
 }
@@ -505,10 +590,49 @@ toggles.forEach(toggle => toggle.addEventListener("change", refresh));
 model.addEventListener("change", refresh);
 startDate.addEventListener("input", refresh);
 endDate.addEventListener("input", refresh);
-byId("reset-dates").addEventListener("click", () => {
-  startDate.value = earliest;
-  endDate.value = latest;
+function setDateRange(from, through) {
+  if (startDate.value === from && endDate.value === through) return;
+  startDate.value = from;
+  endDate.value = through;
   refresh();
+}
+byId("reset-dates").addEventListener("click", () => setDateRange(earliest, latest));
+
+function dayAtPointer(event) {
+  const bounds = timeline.getBoundingClientRect();
+  const day = Math.floor((event.clientX - bounds.left) / bounds.width * cloudDates.length);
+  return Math.max(0, Math.min(cloudDates.length - 1, day));
+}
+
+let dateDrag = null;
+function updateDrag(day) {
+  dateDrag.last = day;
+  setDateRange(cloudDates[Math.min(dateDrag.start, day)], cloudDates[Math.max(dateDrag.start, day)]);
+}
+
+timeline.addEventListener("pointerdown", event => {
+  if (event.button !== 0 || !event.isPrimary) return;
+  const day = dayAtPointer(event);
+  dateDrag = { pointer: event.pointerId, start: day, last: day };
+  timeline.setPointerCapture(event.pointerId);
+});
+timeline.addEventListener("pointermove", event => {
+  if (dateDrag?.pointer !== event.pointerId) return;
+  const day = dayAtPointer(event);
+  if (day !== dateDrag.last) updateDrag(day);
+});
+timeline.addEventListener("pointerup", event => {
+  if (dateDrag?.pointer !== event.pointerId) return;
+  updateDrag(dayAtPointer(event));
+  dateDrag = null;
+});
+timeline.addEventListener("lostpointercapture", event => {
+  if (dateDrag?.pointer === event.pointerId) dateDrag = null;
+});
+timelineDays.forEach((button, index) => {
+  button.addEventListener("click", event => {
+    if (!event.detail) setDateRange(cloudDates[index], cloudDates[index]);
+  });
 });
 slider.addEventListener("input", refresh);
 byId("previous").addEventListener("click", () => moveSelection(-1));

@@ -23,7 +23,7 @@ The point-cloud study uses synthetic attempts arranged to illustrate the waterfa
 
 An optional third metric can appear on hover, as a color scale, or in a separate panel. A 3D view can use cost in USD as the z-axis. For higher-dimensional comparisons, filter or facet by task family, reasoning setting, or budget, and keep the same x and y scales. Choosing 2D as the default makes older and newer charts easier to compare and avoids hiding observations behind one another.
 
-In the web demo, each dot is inspectable. Readers can select a model and an inclusive range of run dates to see the matching attempts together, with totals for the period and a breakdown by reasoning setting. The time target controls how many accepted attempts count as on time. The source is a standalone browser page that teams can adapt to records from their own runner. [Private demo](https://waterfall-benchmark-demo.pluckygeode8.chatgpt.site), [web demo source](web-demo/dist/index.html)
+In the web demo, readers can select a model and drag across dates in the Point cloud timeline. Matching attempts stand out while the rest of the waterfall remains visible on the same scales. The selected period shows the count, median elapsed time, and median quality of the matching simulated runs. The Model comparison view carries the same selection into the separate 15-attempt example and shows a breakdown by reasoning setting. Its time target controls how many accepted attempts count as on time. The source is a standalone browser page that teams can adapt to records from their own runner. [Private demo](https://waterfall-benchmark-demo.pluckygeode8.chatgpt.site), [web demo source](web-demo/dist/index.html)
 
 ## 3. The records to maintain
 
